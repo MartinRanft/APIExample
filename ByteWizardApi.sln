@@ -1,0 +1,16 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ByteWizardApi", "ByteWizardApi.csproj", "{D8C69641-923A-4C0B-ABB8-3CB02285C517}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D8C69641-923A-4C0B-ABB8-3CB02285C517}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D8C69641-923A-4C0B-ABB8-3CB02285C517}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D8C69641-923A-4C0B-ABB8-3CB02285C517}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D8C69641-923A-4C0B-ABB8-3CB02285C517}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

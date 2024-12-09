@@ -1,0 +1,111 @@
+# Rules for tagging:
+# master  [commit] => latest (<module>-prod:latest; <module>-dev:latest)
+# master  [tag] => <1.0.0> (<module>-prod:<1.0.0>; <module>-dev:<1.0.0>)
+# develop [commit] => <#hash> (<module>-dev:develop-<#hash>; <module>-dev:develop-latest)
+# feature/* [commit] => <module>-dev:<branch-name>-latest (always last commit of branch)
+
+# Requirements:
+# - Only one Gitlab runner is used, if you have multiple runners,
+#   you need to make sure that the same runner is used for the same pipeline
+#   via tags. Alternative: you need to pull the image from the registry in each job.
+#######################################################################################
+# do not use "latest" here, if you want this to work in the future
+image: docker:20
+
+stages:
+  - build
+  - push
+
+variables:
+  REGISTRY: $CI_REGISTRY_URL
+  IMAGE_REGISTRY_NAME_DEV: $REGISTRY/$CI_PROJECT_PATH-dev
+  IMAGE_REGISTRY_NAME_PROD: $REGISTRY/$CI_PROJECT_PATH-prod
+  BUILD_TAG: $CI_COMMIT_SHA
+  BUILD_INAME_DEV_W_TAG: $IMAGE_REGISTRY_NAME_DEV:$BUILD_TAG
+  BUILD_INAME_PROD_W_TAG: $IMAGE_REGISTRY_NAME_PROD:$BUILD_TAG
+
+# Use this if your GitLab runner does not use socket binding
+# services:
+#   - docker:dind
+
+before_script:
+  - echo -n $CI_REGISTRY_PASSWORD | docker login $REGISTRY/v2/ -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+  # For debugging purposes:
+  # - echo $CI_REGISTRY_IMAGE
+  # - echo $CI_COMMIT_SHA
+  # - echo $CI_COMMIT_SHORT_SHA
+  # - echo $CI_COMMIT_REF_NAME
+
+Build Dev:
+  stage: build
+  script:
+    - echo "Starting build of Dev Image..."
+    - docker build --tag $BUILD_INAME_DEV_W_TAG --build-arg BUILD_TARGET_ENV=dev --file=Dockerfile .
+
+Build Prod:
+  stage: build
+  only:
+    - master
+    - /^[hotfix]\/.*$/
+    - tags
+  script:
+    - echo "Starting build of Prod Image..."
+    - docker build --tag $BUILD_INAME_PROD_W_TAG --build-arg BUILD_TARGET_ENV=prod --file=Dockerfile .
+
+Push master:
+  variables:
+    GIT_STRATEGY: none
+    PUSH_INAME_W_TAG_DEV: $IMAGE_REGISTRY_NAME_DEV:latest
+    PUSH_INAME_W_TAG_PROD: $IMAGE_REGISTRY_NAME_PROD:latest
+  stage: push
+  only:
+    - master
+  except:
+    - tags # if a tag is pushed on master, this shall not be executed again
+  script:
+    - docker tag $BUILD_INAME_PROD_W_TAG $PUSH_INAME_W_TAG_PROD
+    - docker push $PUSH_INAME_W_TAG_PROD
+
+Push develop:
+  variables:
+    GIT_STRATEGY: none
+    PUSH_INAME_W_TAG_DEV_LATEST: $IMAGE_REGISTRY_NAME_DEV:develop-latest
+    PUSH_INAME_W_TAG_DEV_COMMIT: $IMAGE_REGISTRY_NAME_DEV:develop-$CI_COMMIT_SHA
+  stage: push
+  only:
+    - develop
+  except:
+    - tags # if a tag is pushed on develop, this shall not be executed again
+  script:
+    - docker tag $BUILD_INAME_DEV_W_TAG $PUSH_INAME_W_TAG_DEV_LATEST
+    - docker tag $BUILD_INAME_DEV_W_TAG $PUSH_INAME_W_TAG_DEV_COMMIT
+    - docker push $PUSH_INAME_W_TAG_DEV_LATEST
+    - docker push $PUSH_INAME_W_TAG_DEV_COMMIT
+
+Push features:
+  variables:
+    GIT_STRATEGY: none
+    PUSH_INAME_W_TAG: $IMAGE_REGISTRY_NAME_DEV:$CI_COMMIT_REF_SLUG-latest
+  stage: push
+  except:
+    - develop
+    - tags # if a tag is pushed on a feature branch, this shall not be executed again
+  script:
+    - docker tag $BUILD_INAME_DEV_W_TAG $PUSH_INAME_W_TAG
+    - docker push $PUSH_INAME_W_TAG
+
+Push tag:
+  variables:
+    GIT_STRATEGY: none
+    PUSH_INAME_W_TAG_DEV: $IMAGE_REGISTRY_NAME_DEV:$CI_COMMIT_REF_NAME
+    PUSH_INAME_W_TAG_PROD: $IMAGE_REGISTRY_NAME_PROD:$CI_COMMIT_REF_NAME
+  stage: push
+  only:
+    - tags
+  script:
+    # DEV
+    - docker tag $BUILD_INAME_DEV_W_TAG $PUSH_INAME_W_TAG_DEV
+    - docker push $PUSH_INAME_W_TAG_DEV
+    # PROD
+    - docker tag $BUILD_INAME_PROD_W_TAG $PUSH_INAME_W_TAG_PROD
+    - docker push $PUSH_INAME_W_TAG_PROD
